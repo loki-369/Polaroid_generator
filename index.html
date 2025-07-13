@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polaroid Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .container {
+            margin: 20px auto;
+            max-width: 800px;
+        }
+        .polaroid {
+            display: inline-block;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            text-align: center;
+            border: 1px solid black;
+        }
+        .polaroid img {
+            width: 100px;
+            height: 120px;
+            object-fit: cover;
+        }
+        #a3Preview {
+            width: 420mm;
+            height: 297mm;
+            display: grid;
+            grid-template-columns: repeat(7, 1fr); /* 7 images per row */
+            grid-template-rows: repeat(4, 1fr); /* 4 images per column */
+            background: grey;
+            margin: 0 auto;
+            padding: 0;
+            gap: 0; /* Removed spacing between polaroids */
+        }
+        #a3Preview img {
+            width: 100%;
+            height: 100%;
+            border: 1px solid black; /* 1px border */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Polaroid Generator</h1>
+        <input type="file" id="imageInput" accept="image/*" multiple>
+        <button onclick="generatePolaroids()">Generate Polaroids</button>
+        <button onclick="arrangeInA3()">Arrange in A3</button>
+        <button onclick="downloadPDF()">Download as PDF</button>
+        
+        <div id="preview"></div>
+        <h2>A3 Preview</h2>
+        <div id="a3Preview"></div>
+    </div>
+
+    <script>
+        let polaroids = [];
+
+        function generatePolaroids() {
+            const input = document.getElementById("imageInput");
+            if (input.files.length === 0) return;
+
+            Array.from(input.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = document.createElement("img");
+                    img.src = e.target.result;
+                    img.onload = function () {
+                        const canvas = document.createElement("canvas");
+                        const ctx = canvas.getContext("2d");
+
+                        // Square crop
+                        const squareSize = Math.min(img.width, img.height);
+                        const startX = (img.width - squareSize) / 2;
+                        const startY = (img.height - squareSize) / 2;
+
+                        // Polaroid dimensions
+                        canvas.width = 1039;
+                        canvas.height = 1262;
+
+                        // Background color
+                        ctx.fillStyle = "white";
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                        // Draw cropped image
+                        ctx.drawImage(img, startX, startY, squareSize, squareSize, 75, 75, 890, 890);
+
+                        // Border around the polaroid
+                        ctx.strokeStyle = "black";
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+                        // Convert to compressed JPEG instead of PNG
+                        const imgData = canvas.toDataURL("image/jpeg", 0.6); // 60% quality
+                        polaroids.push(imgData);
+
+                        // Add to preview
+                        const polaroidDiv = document.createElement("div");
+                        polaroidDiv.classList.add("polaroid");
+                        polaroidDiv.innerHTML = `<img src='${imgData}'>`;
+                        document.getElementById("preview").appendChild(polaroidDiv);
+                    };
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function arrangeInA3() {
+            const a3Div = document.getElementById("a3Preview");
+            a3Div.innerHTML = "";
+            
+            polaroids.slice(0, 28).forEach(src => {
+                const img = document.createElement("img");
+                img.src = src;
+                a3Div.appendChild(img);
+            });
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
+
+            let x = 0, y = 0;
+            const imageWidth = 420 / 7; // 7 columns
+            const imageHeight = 297 / 4; // 4 rows
+            const imagesPerPage = 28;
+
+            polaroids.slice(0, imagesPerPage).forEach((src, index) => {
+                doc.addImage(src, "JPEG", x, y, imageWidth, imageHeight);
+                doc.rect(x, y, imageWidth, imageHeight, "S"); // Border for PDF images
+                x += imageWidth;
+
+                if ((index + 1) % 7 === 0) { // New row after 7 images
+                    x = 0;
+                    y += imageHeight;
+                }
+
+                if ((index + 1) % imagesPerPage === 0) {
+                    doc.addPage();
+                    x = 0;
+                    y = 0;
+                }
+            });
+
+            doc.save("Polaroid_A3.pdf");
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+</body>
+</html>
